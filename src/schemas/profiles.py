@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import UploadFile, Form, File, HTTPException
+from fastapi import UploadFile
 from pydantic import BaseModel, field_validator, HttpUrl
 
 from validation import (
@@ -41,6 +41,11 @@ class ProfileRequestSchema(BaseModel):
             raise ValueError("Info cannot be empty")
         return value
 
+    @field_validator("avatar")
+    def validate_avatar(cls, value: UploadFile):
+        validate_image(value)
+        return value
+
 
 class ProfileResponseSchema(BaseModel):
     id: int
@@ -51,4 +56,3 @@ class ProfileResponseSchema(BaseModel):
     date_of_birth: date
     info: str
     avatar: HttpUrl
-
