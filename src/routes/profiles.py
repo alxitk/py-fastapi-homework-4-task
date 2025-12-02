@@ -8,7 +8,6 @@ from security.http import get_token
 from storages import S3StorageInterface
 from exceptions import TokenExpiredError, InvalidTokenError
 from schemas.profiles import ProfileRequestSchema, ProfileResponseSchema
-from validation import validate_image
 
 router = APIRouter()
 
@@ -45,6 +44,17 @@ async def create_profile(
     if not current_user or not current_user.is_active:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+    target_user_result = await db.execute(
+        select(UserModel).where(UserModel.id == user_id)
+    )
+    target_user = target_user_result.scalar_one_or_none()
+
+    if not target_user or not target_user.is_active:
+        raise HTTPException(
+            status_code=401,
+            detail="User not found or not active."
+        )
+
     is_admin = current_user.group_id == 3
     if not is_admin and current_user.id != user_id:
         raise HTTPException(
@@ -56,9 +66,10 @@ async def create_profile(
         select(UserProfileModel).where(UserProfileModel.user_id == user_id)
     )
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="User already has a profile.")
-
-    validate_image(avatar)
+        raise HTTPException(
+            status_code=400,
+            detail="User already has a profile."
+        )
 
     avatar_key = f"avatars/{user_id}_{avatar.filename}"
     try:
@@ -66,7 +77,10 @@ async def create_profile(
         await s3_client.upload_file(avatar_key, avatar.file)
         avatar_url = await s3_client.get_file_url(avatar_key)
     except Exception:
-        raise HTTPException(status_code=500, detail="Failed to upload avatar.")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to upload avatar. Please try again later."
+        )
 
     profile = UserProfileModel(
         user_id=user_id,
